@@ -1,0 +1,362 @@
+---
+title: "1_Germeval2018"
+format: html
+editor: visual
+---
+
+# Vorbereitung
+
+```{r message = FALSE}
+library(tidyverse)
+library(easystats)
+library(tidymodels)
+library(tidytext)  # Textmining
+library(textrecipes)  # Textanalysen in Tidymodels-Rezepten
+library(lsa)  # stopwords
+library(discrim)  # naive bayes classification
+library(naivebayes)
+library(tictoc)  # Zeitmessung
+library(fastrtext)  # Worteinbettungen
+library(remoji)  # Emojis
+library(tokenizers)  # Vektoren tokenisieren
+library(syuzhet)
+library(pradadata)
+library(doParallel)
+```
+
+```{r}
+options(wc.cores = parallel::detectCores())
+```
+
+## Datensätze
+
+```{r}
+data("germeval_train") 
+
+data("germeval_test")
+
+data("sentiws")
+
+data("schimpfwoerter")
+
+data("wild_emojis", package = "pradadata")
+
+d_train <- germeval_train
+d_test <- germeval_test
+
+
+```
+
+```{r}
+names(d_train) <- c("id", "text", "c1", "c2")
+```
+
+```{r}
+wiki_de_embeds_path <- "/Users/chrissi/Dokumente/Angewandte Wirtschafts- und Medienpsychologie/WS 2023:24/Data Science 2/Wiki2Vec_German.txt"
+
+wiki_de_embeds <-
+  data.table::fread(file = wiki_de_embeds_path,
+                    sep = " ",
+                    header = FALSE,
+                    showProgress = FALSE)
+```
+
+```{r}
+names(wiki_de_embeds)[1] <- "word"
+
+wiki <- as_tibble(wiki_de_embeds)
+```
+
+# Textanalyse
+
+```{r}
+d_train %>% 
+  count(c1)
+```
+
+```{r}
+d_train %>% 
+  count(c2)
+```
+
+```{r}
+train2 <-
+  d_train %>% 
+  mutate(text_length = str_length(text))
+```
+
+Durchschnittliche Textlänge:
+
+```{r}
+train2 %>% 
+  summarise(mean(text_length)) %>% round(0)
+```
+
+## Sentimentanalyse vorab
+
+```{r}
+tic()
+senti1 <- get_nrc_sentiment(d_train$text, language = "german")
+toc()
+```
+
+```{r}
+senti1 %>% 
+  summarise(across(.cols = everything(), .fns = sum))
+```
+
+Anteil der negativen Gefühle:
+
+```{r}
+senti1 %>% 
+  summarise(anger_prop = 399/1449,
+            disgust_prop = 306/1449,
+            fear_prop = 499/1449,
+            sadness_prop = 730/1449)
+```
+
+Anteile positive Gefühle:
+
+```{r}
+senti1 %>% 
+  summarise(anticipation_prop = 567/1753,
+            joy_prop = 384/1753,
+            surprise_prop = 265/1753,
+            trsut_prop = 840/1753)
+
+```
+
+```{r}
+tic()
+senti2 <- get_sentiment(d_train$text,
+              method = "custom",
+              lexicon = sentiws) %>% 
+  as_tibble()
+toc()
+```
+
+## Schimpfwörter
+
+```{r}
+train_long <- 
+  d_train %>% 
+  unnest_tokens(input = text, output = token)
+
+d_schimpf <- 
+  train_long %>% 
+  select(id, token) %>% 
+  mutate(schimpf = token %in% schimpfwoerter$word)
+
+d_schimpf %>% 
+  count(schimpf)
+```
+
+```{r}
+train3 <-
+  train_long %>% 
+  full_join(d_schimpf,relationship = "many-to-many") %>% 
+  select(-c1, -c2)
+```
+
+```{r}
+train3 %>% 
+  dplyr::filter(schimpf == "TRUE") %>% 
+  nrow()
+```
+
+```{r}
+schimpfwoerter <- 
+  schimpfwoerter %>% 
+  mutate(value = 1)
+```
+
+## Emojis
+
+```{r}
+d_emojis <- 
+  train2 %>% 
+  select(id, text) %>% 
+  mutate(wild_emoji = text %in% wild_emojis$emoji)
+
+
+d_emojis %>% 
+  filter(wild_emoji == "TRUE")
+```
+
+Scheinbar keine Hass-Emojis
+
+# Tidymodels
+
+## Kreuzvalidierung
+
+```{r}
+set.seed(42)
+folds1 <- vfold_cv(train2, v = 5)
+```
+
+## Rezept
+
+```{r}
+rec1 <- 
+  recipe(c1 ~ ., data = train2) %>% 
+  update_role(id, new_role = "id")  %>% 
+  update_role(c2, new_role = "ignore") %>% 
+  step_mutate(n_schimpf = get_sentiment(text, method = "custom", lexicon = schimpfwoerter)) %>% 
+  step_mutate(rsenti = get_sentiment(text, method = "custom", lexicon = sentiws)) %>% 
+  step_tokenize(text) %>%
+  step_stopwords(text, keep = FALSE) %>%
+  step_word_embeddings(text,
+                       embeddings = wiki,
+                       aggregation = "mean") %>% 
+  step_zv() %>% 
+  step_normalize(all_numeric_predictors())
+```
+
+```{r}
+rec1_prep <- prep(rec1, train2)
+
+rec1_bake <- bake(rec1_prep, new_data = NULL)
+
+head(rec1_bake)
+```
+
+## Naive Bayes
+
+```{r}
+nb_modell <- naive_Bayes() %>%
+  set_mode("classification") %>%
+  set_engine("naivebayes")
+
+wf1 <-
+  workflow() %>% 
+  add_recipe(rec1) %>% 
+  add_model(nb_modell)
+
+tic()
+fit1 <-
+  fit_resamples(
+    wf1,
+    folds1,
+    control = control_resamples(save_pred = TRUE)
+  )
+toc()
+```
+
+```{r}
+wf1_performance <-
+  collect_metrics(fit1)
+
+wf1_performance
+```
+
+## Logistische Regression
+
+```{r}
+lasso_modell <- logistic_reg(penalty = tune(), mixture = 1) %>%
+  set_mode("classification") %>%
+  set_engine("glmnet")
+
+wf2 <- workflow() %>% 
+  add_recipe(rec1) %>% 
+  add_model(lasso_modell)
+
+lambda_grid <- grid_regular(penalty(), levels = 5)  
+
+tic()
+fit2 <- 
+  tune_grid(wf2, folds1, grid = lambda_grid, control = control_resamples(save_pred = TRUE))
+toc()
+```
+
+```{r}
+wf2_performance <- collect_metrics(fit2)
+
+wf2_performance
+```
+
+## Random Forest
+
+```{r}
+rf_model <- 
+  rand_forest(mtry = 3,
+              min_n = tune(),
+              trees = 1000) %>% 
+  set_engine("ranger") %>% 
+  set_mode("classification")
+
+rf_wf <- 
+  workflow() %>% 
+  add_model(rf_model) %>% 
+  add_recipe(rec1)
+
+rf_grid <- 
+  grid_regular(min_n(), levels = 4)
+
+tic()
+rf_fit <- 
+  tune_grid(object = rf_wf, resamples = folds1, grid = rf_grid)
+toc()
+
+show_best(rf_fit)
+```
+
+```{r}
+rf_final_wf <- 
+  rf_wf %>% 
+  finalize_workflow(select_best(rf_fit))
+```
+
+# Fitten und Vorhersagen
+
+```{r}
+fit_train <- 
+  rf_final_wf %>% 
+  fit(train2)
+```
+
+## Vorbereitung Test-Datensatz
+
+Textlänge
+
+```{r}
+test2 <-
+  d_test %>% 
+  mutate(text_length = str_length(text))
+```
+
+Sentimentanalyse
+
+```{r}
+senti_test <- get_sentiment(d_test$text,
+              method = "custom",
+              lexicon = sentiws) %>% 
+  as_tibble()
+```
+
+```{r}
+test3 <- test2 %>% 
+  bind_cols(value = senti_test$value) %>% 
+  mutate(id = row_number())
+```
+
+```{r}
+fit_test <- 
+  fit_train %>% 
+  predict(test3)
+```
+
+# Güte überprüfen
+
+```{r}
+test4 <-
+  test3 |> 
+  bind_cols(fit_test) |> 
+  mutate(c1 = as.factor(c1))
+```
+
+```{r}
+my_metrics <- metric_set(accuracy, f_meas)
+my_metrics(test4,
+           truth = c1,
+           estimate = .pred_class)
+```
