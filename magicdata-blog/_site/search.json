@@ -1,26 +1,5 @@
 [
   {
-    "objectID": "about.html",
-    "href": "about.html",
-    "title": "About",
-    "section": "",
-    "text": "About this blog"
-  },
-  {
-    "objectID": "posts/welcome/index.html",
-    "href": "posts/welcome/index.html",
-    "title": "Welcome To My Blog",
-    "section": "",
-    "text": "This is the first post in a Quarto blog. Welcome!\n\nSince this post doesn’t specify an explicit image, the first image in the post will be used in the listing page of posts."
-  },
-  {
-    "objectID": "posts/post-with-code/index.html",
-    "href": "posts/post-with-code/index.html",
-    "title": "Post With Code",
-    "section": "",
-    "text": "This is a post with executable code.\n\n1 + 1\n\n[1] 2"
-  },
-  {
     "objectID": "posts/post-with-code/1_Germeval_Blog.html",
     "href": "posts/post-with-code/1_Germeval_Blog.html",
     "title": "1_Germeval2018",
@@ -39,7 +18,7 @@
     "href": "posts/post-with-code/1_Germeval_Blog.html#sentimentanalyse-vorab",
     "title": "1_Germeval2018",
     "section": "Sentimentanalyse vorab",
-    "text": "Sentimentanalyse vorab\n\ntic()\nsenti1 &lt;- get_nrc_sentiment(d_train$text, language = \"german\")\ntoc()\n\n52.314 sec elapsed\n\n\n\nsenti1 %&gt;% \n  summarise(across(.cols = everything(), .fns = sum))\n\n  anger anticipation disgust fear joy sadness surprise trust negative positive\n1   399          567     306  499 384     730      265   840     1449     1753\n\n\nAnteil der negativen Gefühle:\n\nsenti1 %&gt;% \n  summarise(anger_prop = 399/1449,\n            disgust_prop = 306/1449,\n            fear_prop = 499/1449,\n            sadness_prop = 730/1449)\n\n  anger_prop disgust_prop fear_prop sadness_prop\n1  0.2753623    0.2111801 0.3443754    0.5037957\n\n\nAnteile positive Gefühle:\n\nsenti1 %&gt;% \n  summarise(anticipation_prop = 567/1753,\n            joy_prop = 384/1753,\n            surprise_prop = 265/1753,\n            trsut_prop = 840/1753)\n\n  anticipation_prop  joy_prop surprise_prop trsut_prop\n1         0.3234455 0.2190531     0.1511694  0.4791786\n\n\n\ntic()\nsenti2 &lt;- get_sentiment(d_train$text,\n              method = \"custom\",\n              lexicon = sentiws) %&gt;% \n  as_tibble()\ntoc()\n\n3.914 sec elapsed"
+    "text": "Sentimentanalyse vorab\n\ntic()\nsenti1 &lt;- get_nrc_sentiment(d_train$text, language = \"german\")\ntoc()\n\n120.176 sec elapsed\n\n\n\nsenti1 %&gt;% \n  summarise(across(.cols = everything(), .fns = sum))\n\n  anger anticipation disgust fear joy sadness surprise trust negative positive\n1   399          567     306  499 384     730      265   840     1449     1753\n\n\nAnteil der negativen Gefühle:\n\nsenti1 %&gt;% \n  summarise(anger_prop = 399/1449,\n            disgust_prop = 306/1449,\n            fear_prop = 499/1449,\n            sadness_prop = 730/1449)\n\n  anger_prop disgust_prop fear_prop sadness_prop\n1  0.2753623    0.2111801 0.3443754    0.5037957\n\n\nAnteile positive Gefühle:\n\nsenti1 %&gt;% \n  summarise(anticipation_prop = 567/1753,\n            joy_prop = 384/1753,\n            surprise_prop = 265/1753,\n            trsut_prop = 840/1753)\n\n  anticipation_prop  joy_prop surprise_prop trsut_prop\n1         0.3234455 0.2190531     0.1511694  0.4791786\n\n\n\ntic()\nsenti2 &lt;- get_sentiment(d_train$text,\n              method = \"custom\",\n              lexicon = sentiws) %&gt;% \n  as_tibble()\ntoc()\n\n7.763 sec elapsed"
   },
   {
     "objectID": "posts/post-with-code/1_Germeval_Blog.html#schimpfwörter",
@@ -74,21 +53,21 @@
     "href": "posts/post-with-code/1_Germeval_Blog.html#naive-bayes",
     "title": "1_Germeval2018",
     "section": "Naive Bayes",
-    "text": "Naive Bayes\n\nnb_modell &lt;- naive_Bayes() %&gt;%\n  set_mode(\"classification\") %&gt;%\n  set_engine(\"naivebayes\")\n\nwf1 &lt;-\n  workflow() %&gt;% \n  add_recipe(rec1) %&gt;% \n  add_model(nb_modell)\n\ntic()\nfit1 &lt;-\n  fit_resamples(\n    wf1,\n    folds1,\n    control = control_resamples(save_pred = TRUE)\n  )\ntoc()\n\n98.091 sec elapsed\n\n\n\nwf1_performance &lt;-\n  collect_metrics(fit1)\n\nwf1_performance\n\n# A tibble: 2 × 6\n  .metric  .estimator  mean     n std_err .config             \n  &lt;chr&gt;    &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;               \n1 accuracy binary     0.667     5 0.00460 Preprocessor1_Model1\n2 roc_auc  binary     0.705     5 0.00331 Preprocessor1_Model1"
+    "text": "Naive Bayes\n\nnb_modell &lt;- naive_Bayes() %&gt;%\n  set_mode(\"classification\") %&gt;%\n  set_engine(\"naivebayes\")\n\nwf1 &lt;-\n  workflow() %&gt;% \n  add_recipe(rec1) %&gt;% \n  add_model(nb_modell)\n\ntic()\nfit1 &lt;-\n  fit_resamples(\n    wf1,\n    folds1,\n    control = control_resamples(save_pred = TRUE)\n  )\ntoc()\n\n186.741 sec elapsed\n\n\n\nwf1_performance &lt;-\n  collect_metrics(fit1)\n\nwf1_performance\n\n# A tibble: 2 × 6\n  .metric  .estimator  mean     n std_err .config             \n  &lt;chr&gt;    &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;               \n1 accuracy binary     0.667     5 0.00460 Preprocessor1_Model1\n2 roc_auc  binary     0.705     5 0.00331 Preprocessor1_Model1"
   },
   {
     "objectID": "posts/post-with-code/1_Germeval_Blog.html#logistische-regression",
     "href": "posts/post-with-code/1_Germeval_Blog.html#logistische-regression",
     "title": "1_Germeval2018",
     "section": "Logistische Regression",
-    "text": "Logistische Regression\n\nlasso_modell &lt;- logistic_reg(penalty = tune(), mixture = 1) %&gt;%\n  set_mode(\"classification\") %&gt;%\n  set_engine(\"glmnet\")\n\nwf2 &lt;- workflow() %&gt;% \n  add_recipe(rec1) %&gt;% \n  add_model(lasso_modell)\n\nlambda_grid &lt;- grid_regular(penalty(), levels = 5)  \n\ntic()\nfit2 &lt;- \n  tune_grid(wf2, folds1, grid = lambda_grid, control = control_resamples(save_pred = TRUE))\ntoc()\n\n96.146 sec elapsed\n\n\n\nwf2_performance &lt;- collect_metrics(fit2)\n\nwf2_performance\n\n# A tibble: 10 × 7\n        penalty .metric  .estimator  mean     n std_err .config             \n          &lt;dbl&gt; &lt;chr&gt;    &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;               \n 1 0.0000000001 accuracy binary     0.725     5 0.00773 Preprocessor1_Model1\n 2 0.0000000001 roc_auc  binary     0.768     5 0.00803 Preprocessor1_Model1\n 3 0.0000000316 accuracy binary     0.725     5 0.00773 Preprocessor1_Model2\n 4 0.0000000316 roc_auc  binary     0.768     5 0.00803 Preprocessor1_Model2\n 5 0.00001      accuracy binary     0.725     5 0.00773 Preprocessor1_Model3\n 6 0.00001      roc_auc  binary     0.768     5 0.00803 Preprocessor1_Model3\n 7 0.00316      accuracy binary     0.722     5 0.00583 Preprocessor1_Model4\n 8 0.00316      roc_auc  binary     0.768     5 0.00873 Preprocessor1_Model4\n 9 1            accuracy binary     0.663     5 0.00552 Preprocessor1_Model5\n10 1            roc_auc  binary     0.5       5 0       Preprocessor1_Model5"
+    "text": "Logistische Regression\n\nlasso_modell &lt;- logistic_reg(penalty = tune(), mixture = 1) %&gt;%\n  set_mode(\"classification\") %&gt;%\n  set_engine(\"glmnet\")\n\nwf2 &lt;- workflow() %&gt;% \n  add_recipe(rec1) %&gt;% \n  add_model(lasso_modell)\n\nlambda_grid &lt;- grid_regular(penalty(), levels = 5)  \n\ntic()\nfit2 &lt;- \n  tune_grid(wf2, folds1, grid = lambda_grid, control = control_resamples(save_pred = TRUE))\ntoc()\n\n184.425 sec elapsed\n\n\n\nwf2_performance &lt;- collect_metrics(fit2)\n\nwf2_performance\n\n# A tibble: 10 × 7\n        penalty .metric  .estimator  mean     n std_err .config             \n          &lt;dbl&gt; &lt;chr&gt;    &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;               \n 1 0.0000000001 accuracy binary     0.725     5 0.00773 Preprocessor1_Model1\n 2 0.0000000001 roc_auc  binary     0.768     5 0.00803 Preprocessor1_Model1\n 3 0.0000000316 accuracy binary     0.725     5 0.00773 Preprocessor1_Model2\n 4 0.0000000316 roc_auc  binary     0.768     5 0.00803 Preprocessor1_Model2\n 5 0.00001      accuracy binary     0.725     5 0.00773 Preprocessor1_Model3\n 6 0.00001      roc_auc  binary     0.768     5 0.00803 Preprocessor1_Model3\n 7 0.00316      accuracy binary     0.722     5 0.00583 Preprocessor1_Model4\n 8 0.00316      roc_auc  binary     0.768     5 0.00873 Preprocessor1_Model4\n 9 1            accuracy binary     0.663     5 0.00552 Preprocessor1_Model5\n10 1            roc_auc  binary     0.5       5 0       Preprocessor1_Model5"
   },
   {
     "objectID": "posts/post-with-code/1_Germeval_Blog.html#random-forest",
     "href": "posts/post-with-code/1_Germeval_Blog.html#random-forest",
     "title": "1_Germeval2018",
     "section": "Random Forest",
-    "text": "Random Forest\n\nrf_model &lt;- \n  rand_forest(mtry = 3,\n              min_n = tune(),\n              trees = 1000) %&gt;% \n  set_engine(\"ranger\") %&gt;% \n  set_mode(\"classification\")\n\nrf_wf &lt;- \n  workflow() %&gt;% \n  add_model(rf_model) %&gt;% \n  add_recipe(rec1)\n\nrf_grid &lt;- \n  grid_regular(min_n(), levels = 4)\n\ntic()\nrf_fit &lt;- \n  tune_grid(object = rf_wf, resamples = folds1, grid = rf_grid)\ntoc()\n\n296.414 sec elapsed\n\nshow_best(rf_fit)\n\nWarning: No value of `metric` was given; metric 'roc_auc' will be used.\n\n\n# A tibble: 4 × 7\n  min_n .metric .estimator  mean     n std_err .config             \n  &lt;int&gt; &lt;chr&gt;   &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;               \n1    14 roc_auc binary     0.775     5 0.00398 Preprocessor1_Model2\n2    40 roc_auc binary     0.775     5 0.00297 Preprocessor1_Model4\n3     2 roc_auc binary     0.775     5 0.00414 Preprocessor1_Model1\n4    27 roc_auc binary     0.773     5 0.00348 Preprocessor1_Model3\n\n\n\nrf_final_wf &lt;- \n  rf_wf %&gt;% \n  finalize_workflow(select_best(rf_fit))\n\nWarning: No value of `metric` was given; metric 'roc_auc' will be used."
+    "text": "Random Forest\n\nrf_model &lt;- \n  rand_forest(mtry = 3,\n              min_n = tune(),\n              trees = 1000) %&gt;% \n  set_engine(\"ranger\") %&gt;% \n  set_mode(\"classification\")\n\nrf_wf &lt;- \n  workflow() %&gt;% \n  add_model(rf_model) %&gt;% \n  add_recipe(rec1)\n\nrf_grid &lt;- \n  grid_regular(min_n(), levels = 4)\n\ntic()\nrf_fit &lt;- \n  tune_grid(object = rf_wf, resamples = folds1, grid = rf_grid)\ntoc()\n\n545.815 sec elapsed\n\nshow_best(rf_fit)\n\nWarning: No value of `metric` was given; metric 'roc_auc' will be used.\n\n\n# A tibble: 4 × 7\n  min_n .metric .estimator  mean     n std_err .config             \n  &lt;int&gt; &lt;chr&gt;   &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;               \n1    14 roc_auc binary     0.775     5 0.00398 Preprocessor1_Model2\n2    40 roc_auc binary     0.775     5 0.00297 Preprocessor1_Model4\n3     2 roc_auc binary     0.775     5 0.00414 Preprocessor1_Model1\n4    27 roc_auc binary     0.773     5 0.00348 Preprocessor1_Model3\n\n\n\nrf_final_wf &lt;- \n  rf_wf %&gt;% \n  finalize_workflow(select_best(rf_fit))\n\nWarning: No value of `metric` was given; metric 'roc_auc' will be used."
   },
   {
     "objectID": "posts/post-with-code/1_Germeval_Blog.html#vorbereitung-test-datensatz",
@@ -98,10 +77,24 @@
     "text": "Vorbereitung Test-Datensatz\nTextlänge\n\ntest2 &lt;-\n  d_test %&gt;% \n  mutate(text_length = str_length(text))\n\nSentimentanalyse\n\nsenti_test &lt;- get_sentiment(d_test$text,\n              method = \"custom\",\n              lexicon = sentiws) %&gt;% \n  as_tibble()\n\n\ntest3 &lt;- test2 %&gt;% \n  bind_cols(value = senti_test$value) %&gt;% \n  mutate(id = row_number())\n\n\nfit_test &lt;- \n  fit_train %&gt;% \n  predict(test3)"
   },
   {
-    "objectID": "index.html",
-    "href": "index.html",
-    "title": "Datamagic-blog",
+    "objectID": "about.html",
+    "href": "about.html",
+    "title": "About",
     "section": "",
-    "text": "1_Germeval2018\n\n\n\n\n\n\n\n\n\n\n \n\n\n\n\n  \n\n\n\n\nPost With Code\n\n\n\n\n\n\n\nnews\n\n\ncode\n\n\nanalysis\n\n\n\n\n\n\n\n\n\n\n\nNov 25, 2023\n\n\nHarlow Malloc\n\n\n\n\n\n\n  \n\n\n\n\nWelcome To My Blog\n\n\n\n\n\n\n\nnews\n\n\n\n\n\n\n\n\n\n\n\nNov 22, 2023\n\n\nTristan O’Malley\n\n\n\n\n\n\nNo matching items"
+    "text": "About this blog"
+  },
+  {
+    "objectID": "posts/post-with-code/index.html",
+    "href": "posts/post-with-code/index.html",
+    "title": "Post With Code",
+    "section": "",
+    "text": "This is a post with executable code.\n\n1 + 1\n\n[1] 2"
+  },
+  {
+    "objectID": "posts/welcome/index.html",
+    "href": "posts/welcome/index.html",
+    "title": "Welcome To My Blog",
+    "section": "",
+    "text": "This is the first post in a Quarto blog. Welcome!\n\nSince this post doesn’t specify an explicit image, the first image in the post will be used in the listing page of posts."
   }
 ]
