@@ -1,0 +1,4 @@
+- source: project
+  netlify:
+    - id: 84ff7b37-786c-4b58-96bb-a64448515287
+      url: 'https://unique-cucurucho-20ae74.netlify.app'
