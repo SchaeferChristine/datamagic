@@ -122,7 +122,7 @@ senti1 %>%
   summarise(anticipation_prop = 567/1753,
             joy_prop = 384/1753,
             surprise_prop = 265/1753,
-            trsut_prop = 840/1753)
+            trust_prop = 840/1753)
 
 ```
 
@@ -204,7 +204,7 @@ rec1 <-
   step_mutate(n_schimpf = get_sentiment(text, method = "custom", lexicon = schimpfwoerter)) %>% 
   step_mutate(rsenti = get_sentiment(text, method = "custom", lexicon = sentiws)) %>% 
   step_tokenize(text) %>%
-  step_stopwords(text, keep = FALSE) %>%
+  step_stopwords(text, keep = FALSE, language = "de") %>%
   step_word_embeddings(text,
                        embeddings = wiki,
                        aggregation = "mean") %>% 
