@@ -1,0 +1,4 @@
+- source: project
+  netlify:
+    - id: 10738615-4422-4650-8c46-ab7ead32b998
+      url: 'https://gregarious-entremet-993c5d.netlify.app'
