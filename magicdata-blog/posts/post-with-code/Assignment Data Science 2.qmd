@@ -10,7 +10,29 @@ In the beginning, there will be explorative data analysis, followed by machine l
 
 # Data and packages
 
+
 ```{r}
-read.csv("Prüfungsdaten DS2.csv")
+d_raw <- read.csv("d_hate.csv", sep = ",")
+```
+
+
+Packages: 
+
+```{r}
+library(tidyverse)
+library(easystats)
+library(tidymodels)
+library(tidytext)  # Textmining
+library(textrecipes)  # Textanalysen in Tidymodels-Rezepten
+library(lsa)  # stopwords
+library(discrim)  # naive bayes classification
+library(naivebayes)
+library(tictoc)  # Zeitmessung
+library(fastrtext)  # Worteinbettungen
+library(remoji)  # Emojis
+library(tokenizers)  # Vektoren tokenisieren
+library(syuzhet)
+library(pradadata)
+library(doParallel)
 ```
 
