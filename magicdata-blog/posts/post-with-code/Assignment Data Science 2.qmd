@@ -1,0 +1,16 @@
+---
+title: "Assignment Data Science 2"
+---
+
+# Task
+
+This blog post's goal is to predict a classification of social media text messages whether they contain hate speech or not. 
+In the beginning, there will be explorative data analysis, followed by machine learning with Tidymodels and a neural network computation via Hugging Face. 
+
+
+# Data and packages
+
+```{r}
+read.csv("Prüfungsdaten DS2.csv")
+```
+
