@@ -205,9 +205,7 @@ rec1 <-
   step_mutate(rsenti = get_sentiment(text, method = "custom", lexicon = sentiws)) %>% 
   step_tokenize(text) %>%
   step_stopwords(text, keep = FALSE, language = "de") %>%
-  step_word_embeddings(text,
-                       embeddings = wiki,
-                       aggregation = "mean") %>%  
+  step_word_embeddings(text, embeddings = wiki,aggregation = "mean") %>%  
   step_zv() %>% 
   step_normalize(all_numeric_predictors())
 ```

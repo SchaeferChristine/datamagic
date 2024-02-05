@@ -18,21 +18,393 @@ d_raw <- read.csv("d_hate.csv", sep = ",")
 
 Packages: 
 
-```{r}
+```{r message=FALSE}
 library(tidyverse)
 library(easystats)
 library(tidymodels)
 library(tidytext)  # Textmining
-library(textrecipes)  # Textanalysen in Tidymodels-Rezepten
+library(textrecipes)  # Text analysis in tidymodels recipes
 library(lsa)  # stopwords
 library(discrim)  # naive bayes classification
 library(naivebayes)
 library(tictoc)  # Zeitmessung
-library(fastrtext)  # Worteinbettungen
+library(fastrtext)  # Word embeddings
 library(remoji)  # Emojis
-library(tokenizers)  # Vektoren tokenisieren
+library(tokenizers)  # tokenize vecotrs
 library(syuzhet)
 library(pradadata)
-library(doParallel)
 ```
 
+
+To speed up computations later on, I activate parallel computing (where possible).
+
+```{r}
+library(parallel)
+all_cores <- detectCores(logical = FALSE)
+
+library(doFuture)
+registerDoFuture()
+cl <- makeCluster(3)
+plan(cluster, workers = cl)
+```
+
+Stopwords: 
+
+```{r}
+stop1 <- tibble(word = quanteda::stopwords("english"))
+```
+
+
+Sentiment Analysis: 
+
+```{r}
+afinn <- get_sentiments("afinn")
+```
+
+
+```{r}
+conflicted::conflict_prefer("select", "dplyr")
+
+conflicted::conflict_prefer("filter", "dplyr")
+```
+
+
+
+# EDA
+
+Now let's take a deeper look into the whole dataset, before splitting it up! 
+
+## Data Descriptions
+
+```{r}
+d_raw %>% 
+  count(class)
+```
+
+Roughly 1/4 of the 5593 observations are classified as hate speech. 
+
+```{r}
+d_hate <-   
+  d_raw %>% 
+  mutate(text_length = str_length(tweet)) 
+
+
+d_hate %>% 
+  summarise(mean(text_length), max(text_length), min(text_length))
+```
+
+There is quite a gap between the shortest and the longest tweet! I would love to see text_length visually for all tweets though:
+
+```{r}
+d_hate %>% 
+  ggplot()+
+  aes(x = text_length)+
+  geom_density()+
+  theme_minimal()
+```
+Only a rare number of tweets has more than 200 strings. 
+
+
+## Most frequent words
+
+```{r}
+d_long <- 
+  d_hate %>% 
+  unnest_tokens(input = tweet, output = token)
+```
+
+
+```{r}
+long2 <- 
+  d_long %>% 
+  rename(word = token) %>% 
+  anti_join(stop1)
+```
+
+```{r}
+words <- long2 %>% 
+  dplyr::filter(str_detect(word, "[A-Za-z]")) %>% 
+  count(word, sort = TRUE)
+```
+
+
+```{r}
+library(wordcloud)
+
+wordcloud(words = words$word, freq = words$n, max.words = 100, random.color = FALSE, colors = brewer.pal(8, "Dark2"))
+```
+Well, there are quite a few negative (even insulting) words in there... But I love that Oreo is among the most frequent words! Who doesn't like a chocolate cookie every now and then?
+
+Out of curiosity, let me check what "rt" stands for: re-tweet. Makes sense, but also means, that I can add that to the list of stopwords! Together with "http" and "t.co" (just indicates that they link a website).
+
+Also, "amp" stands for: any means possible :)
+
+
+## Sentiment analysis: How positive/negative is our data?
+
+
+```{r}
+tic()
+senti1 <- get_nrc_sentiment(d_hate$tweet, language = "english")
+toc()
+```
+
+```{r}
+senti1_results <- 
+  senti1 %>% 
+  summarise(across(.cols = everything(), .fns = sum))
+
+head(senti1_results)
+```
+
+
+I love images, so here we go: 
+
+```{r}
+piechart_data <-
+  senti1_results %>% 
+  dplyr::select(-positive, -negative) %>% 
+  pivot_longer(cols = anger:trust) %>% 
+  arrange(desc(name)) 
+
+piechart_data %>% 
+  ggplot()+
+  aes(x = "", y = value, fill = name)+
+  geom_bar(stat = "identity", width = 1)+
+  coord_polar("y", start = 0)+
+  theme_void()+
+  scale_fill_brewer(palette="Set3")+
+  guides(fill = guide_legend(title = "Emotion"))+
+  geom_text(aes(label = name), position = position_stack(vjust = 0.5))+
+  theme(legend.position = "none")
+```
+
+
+
+Share of negative feelings: 
+
+```{r}
+senti1 %>% 
+  summarise(anger_prop = 1565/4208,
+            disgust_prop = 2297/4208,
+            fear_prop = 1768/4208,
+            sadness_prop = 2464/4208)
+```
+
+Several of the words seem to be associated with more than one negative emotion.
+
+Share of positive feelings:
+
+```{r}
+senti1 %>% 
+  summarise(anticipation_prop = 1824/3240,
+            joy_prop = 1753/3240,
+            surprise_prop = 860/3240,
+            trust_prop = 2099/3240)
+```
+
+
+I must admit that I am surprised of the high numbers of negative feelings compared to the rather small share of tweets categorized as "hate". It seems as if many tweets were negative, but maybe not hate?
+
+
+## Insults
+
+Props to https://www.insult.wiki/list-of-insults for sharing a list free to use!
+I copied the words into excel to easily import them to R Studio!
+
+```{r}
+library(readxl)
+insults <- read_excel("/Users/chrissi/Documents/Studium/Module/Data Science/DS 2/Prüfung/Insults_English.xlsx", col_names = FALSE)
+
+insults$value <- 1
+
+insults <- insults %>% 
+  rename(word = "...1")
+
+head(insults)
+```
+
+
+
+# Preparation for Machine Learning
+
+Now that I have a rough understanding of my dataset, I am excited to get into the Machine Learning part - but first things first. 
+
+
+```{r}
+d_split <- initial_split(d_raw, strata = class, prop = .7)
+
+d_train <- training(d_split)
+
+d_test <- testing(d_split)
+```
+
+
+```{r}
+train2 <- 
+  d_raw %>% 
+  select(-id) %>% 
+  mutate(id = 1:nrow(.)) %>% 
+  select(id, everything())
+```
+
+
+
+```{r}
+stop2 <- 
+  stop1 %>% 
+  add_row(word = "rt") %>% 
+  add_row(word = "http") %>%
+  add_row(word = "t.co")
+```
+
+
+## Adding word embedding data 
+
+https://wikipedia2vec.github.io/wikipedia2vec/pretrained/ 
+
+Als Arrow-Datei speichern
+
+```{r}
+wiki_de_embeds_path <- "/Users/chrissi/Dokumente/Angewandte Wirtschafts- und Medienpsychologie/WS 2023:24/Data Science 2/Wiki2Vec_German.txt"
+
+wiki_de_embeds <-
+  data.table::fread(file = wiki_de_embeds_path,
+                    sep = " ",
+                    header = FALSE,
+                    showProgress = FALSE)
+```
+
+```{r}
+names(wiki_de_embeds)[1] <- "word"
+
+wiki <- as_tibble(wiki_de_embeds)
+```
+
+
+## Insults
+
+Let's see how many insults from my list are included in the data!
+
+```{r}
+d_long %>% 
+  mutate(ins_yes = if_else(token %in% insults$word, 1, 0)) %>% 
+  count(ins_yes)
+```
+
+Alright, we have 2508 hits on insults! That might help the prediction.
+
+
+```{r}
+d_long %>% 
+  get_sentiment(tweet, method = "custom", lexicon = insults)
+```
+
+```{r}
+str(insults)
+```
+
+
+
+# Machine Learning
+
+## Cross-validation
+
+```{r}
+set.seed(42)
+folds <- vfold_cv(d_train, v = 5, repeats = 1)
+```
+
+
+## get_sentiment
+
+Because R does not tolerate that being made in the recipe today. Two AIs are clueless why and so am I. So I'll try it the long way. I'll compute the sentiment analysis outside of the recipe and then import the result into it as a new predictor column.
+
+```{r}
+n_insults <- train2 %>% syuzhet::get_sentiment(tweet, method = "custom", lexicon = insults) %>% 
+  as_tibble()
+```
+
+```{r}
+n_senti <- train2 %>% get_sentiment(tweet, method = "custom", lexicon = afinn)
+```
+
+```{r}
+train3 <- 
+  train2 %>% 
+  bind_cols(n_insults)
+```
+
+
+
+## Recipe
+
+```{r}
+rec1 <- 
+  recipe(class ~ ., data = train2) %>% 
+  update_role(id, new_role = "id")  %>% 
+  #recipes::step_mutate(n_insult = syuzhet::get_sentiment(tweet, method = "custom", lexicon = insults)) %>%  ERROR, could not find lexicon
+  #step_mutate(rsenti = syuzhet::get_sentiment(tweet, method = "custom", lexicon = afinn)) %>% ERROR, could not find lexicon
+  step_tokenize(tweet) %>%
+  step_stopwords(tweet, keep = FALSE, custom_stopword_source = stop2) %>%
+  #step_word_embeddings(tweet, embeddings = wiki, aggregation = "mean") %>%  
+  step_zv() %>% 
+  step_normalize(all_numeric_predictors())
+```
+
+```{r}
+rec1_prep <- prep(rec1, train2)
+
+rec1_bake <- bake(rec1_prep, new_data = NULL)
+
+head(rec1_bake)
+```
+
+
+
+## Naive Bayes
+
+```{r}
+nb_modell <- naive_Bayes() %>%
+  set_mode("classification") %>%
+  set_engine("naivebayes")
+
+wf1 <-
+  workflow() %>% 
+  add_recipe(rec1) %>% 
+  add_model(nb_modell)
+
+tic()
+fit1 <-
+  fit_resamples(
+    wf1,
+    folds,
+    control = control_resamples(save_pred = TRUE)
+  )
+toc()
+```
+
+```{r}
+wf1_performance <-
+  collect_metrics(fit1)
+
+wf1_performance
+```
+
+## xgboost
+
+
+# Predictions 
+
+
+
+## Metrics
+
+
+
+# Neural Networks
+
+## Hugging Face API
+
+
+## Own neural network
