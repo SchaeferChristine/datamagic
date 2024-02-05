@@ -62,6 +62,14 @@ afinn <- get_sentiments("afinn")
 ```
 
 
+Wild emojis:
+
+```{r}
+data("wild_emojis")
+```
+
+
+
 ```{r}
 conflicted::conflict_prefer("select", "dplyr")
 
@@ -224,6 +232,39 @@ insults <- insults %>%
 head(insults)
 ```
 
+Let's see how many insults from my list are included in the data!
+
+```{r}
+d_long %>% 
+  mutate(ins_yes = if_else(token %in% insults$word, 1, 0)) %>% 
+  count(ins_yes)
+```
+
+Alright, we have 2508 hits on insults! That might help the prediction.
+
+
+
+
+## Emojis
+
+Here is a dataframe containing several wild emojis as another possible predictor. Let's check how many there are! 
+
+```{r}
+d_emojis <- 
+  train2 %>% 
+  select(id, text) %>% 
+  mutate(wild_emoji = text %in% wild_emojis$emoji)
+
+
+```
+
+```{r}
+d_long %>% 
+  mutate(wildemo_yes = if_else(token %in% wild_emojis$emoji, 1, 0)) %>% 
+  count(wildemo_yes)
+```
+
+No emoji from that list is to be found in our data. Consequently, we can leave that step out of the recipe
 
 
 # Preparation for Machine Learning
@@ -245,7 +286,9 @@ train2 <-
   d_raw %>% 
   select(-id) %>% 
   mutate(id = 1:nrow(.)) %>% 
-  select(id, everything())
+  select(id, everything()) %>% 
+  rename(text = tweet) %>% 
+  mutate(as.factor(text))
 ```
 
 
@@ -282,78 +325,61 @@ wiki <- as_tibble(wiki_de_embeds)
 ```
 
 
-## Insults
-
-Let's see how many insults from my list are included in the data!
-
-```{r}
-d_long %>% 
-  mutate(ins_yes = if_else(token %in% insults$word, 1, 0)) %>% 
-  count(ins_yes)
-```
-
-Alright, we have 2508 hits on insults! That might help the prediction.
-
-
-```{r}
-d_long %>% 
-  get_sentiment(tweet, method = "custom", lexicon = insults)
-```
-
-```{r}
-str(insults)
-```
-
-
 
 # Machine Learning
+
+## get_sentiment
+
+R does not tolerate the command `get_sentiment` within a `step_mutate` today, so I'll do that outside of the recipe and add the new predictors into the training data set. Error messages varied a lot, depending on what I had tried, but fitting never worked out. Therefore, I'll now work around this problem.
+
+
+```{r}
+train3 <- 
+  train2 %>% 
+  mutate(
+    n_insult = syuzhet::get_sentiment(text, method = "custom", lexicon = sentiws),
+    rsenti = syuzhet::get_sentiment(text, method = "custom", lexicon = afinn))
+```
 
 ## Cross-validation
 
 ```{r}
 set.seed(42)
-folds <- vfold_cv(d_train, v = 5, repeats = 1)
+folds <- vfold_cv(train3, v = 5, repeats = 1)
 ```
-
-
-## get_sentiment
-
-Because R does not tolerate that being made in the recipe today. Two AIs are clueless why and so am I. So I'll try it the long way. I'll compute the sentiment analysis outside of the recipe and then import the result into it as a new predictor column.
-
-```{r}
-n_insults <- train2 %>% syuzhet::get_sentiment(tweet, method = "custom", lexicon = insults) %>% 
-  as_tibble()
-```
-
-```{r}
-n_senti <- train2 %>% get_sentiment(tweet, method = "custom", lexicon = afinn)
-```
-
-```{r}
-train3 <- 
-  train2 %>% 
-  bind_cols(n_insults)
-```
-
 
 
 ## Recipe
 
+
 ```{r}
 rec1 <- 
-  recipe(class ~ ., data = train2) %>% 
+  recipe(class ~ ., data = train3) %>% 
   update_role(id, new_role = "id")  %>% 
-  #recipes::step_mutate(n_insult = syuzhet::get_sentiment(tweet, method = "custom", lexicon = insults)) %>%  ERROR, could not find lexicon
-  #step_mutate(rsenti = syuzhet::get_sentiment(tweet, method = "custom", lexicon = afinn)) %>% ERROR, could not find lexicon
-  step_tokenize(tweet) %>%
-  step_stopwords(tweet, keep = FALSE, custom_stopword_source = stop2) %>%
-  #step_word_embeddings(tweet, embeddings = wiki, aggregation = "mean") %>%  
-  step_zv() %>% 
-  step_normalize(all_numeric_predictors())
+  step_regex(input = text, pattern = "[a-zA-Z]+") %>% 
+  step_tokenize(text) %>%
+  step_stopwords(text, keep = FALSE, custom_stopword_source = stop2) %>%
+  #step_word_embeddings(text, embeddings = wiki, aggregation = "mean") %>%  
+  step_nzv() %>% 
+  step_normalize(all_numeric_predictors()) %>% 
+  step_untokenize(text) #Naive Bayes cannot deal with textrecipes_tokenlist
+```
+
+
+```{r}
+rec2 <- 
+  recipe(class ~ ., data = train3) %>% 
+  update_role(id, new_role = "id")  %>% 
+  step_regex(input = text, pattern = "[a-zA-Z]+") %>% 
+  step_tokenize(text) %>%
+  step_stopwords(text, keep = FALSE, custom_stopword_source = stop2) %>%
+  #step_word_embeddings(text, embeddings = wiki, aggregation = "mean") %>%  
+  step_nzv() %>% 
+  step_normalize(all_numeric_predictors()) 
 ```
 
 ```{r}
-rec1_prep <- prep(rec1, train2)
+rec1_prep <- prep(rec1, train3)
 
 rec1_bake <- bake(rec1_prep, new_data = NULL)
 
@@ -391,20 +417,106 @@ wf1_performance <-
 wf1_performance
 ```
 
-## xgboost
+
+## Random Forest
+
+```{r}
+rf_model <- 
+  rand_forest(mtry = 3,
+              min_n = tune(),
+              trees = 1000) %>% 
+  set_engine("ranger") %>% 
+  set_mode("classification")
+
+rf_wf <- 
+  workflow() %>% 
+  add_model(rf_model) %>% 
+  add_recipe(rec2)
+
+rf_grid <- 
+  grid_regular(min_n(), levels = 1)
+
+tic()
+rf_fit <- 
+  tune_grid(object = rf_wf, resamples = folds, grid = rf_grid)
+toc()
+
+show_best(rf_fit)
+```
 
 
 # Predictions 
 
+final_hate <-
+  last_fit(wf, data_split)
+  
 
 
 ## Metrics
 
+final_hate %>% collect_metrics()
 
+autoplot
 
 # Neural Networks
 
 ## Hugging Face API
 
 
+
 ## Own neural network
+
+import os
+import numpy as np
+import pandas as pd
+
+import tensorflow as tf
+import tensorflow_hub as hub
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense
+from sklearn.metrics import accuracy_score
+
+
+Daten laden
+
+
+tf.config.list_physical_devices('GPU')
+print("GPU is", "available" if tf.config.list_physical_devices("GPU") else "NOT AVAILABLE")
+
+
+embedding = "https://tfhub.dev/google/nnlm-de-dim50/2"
+hub_layer = hub.KerasLayer(embedding, input_shape=[],
+                           dtype=tf.string, trainable=True)
+
+Link ausbessern!! Deutsche Embeddings
+
+
+Modell: 
+
+model = tf.keras.Sequential()
+model.add(hub_layer)
+model.add(tf.keras.layers.Dense(20, activation='relu'))
+model.add(tf.keras.layers.Dense(10, activation = 'relu'))
+model.add(tf.keras.layers.Dense(1))
+
+model.summary()
+
+
+model.compile(optimizer='adam',
+              loss=tf.keras.losses.BinaryCrossentropy(from_logits=True),
+              metrics=['accuracy'])
+
+
+Modell trainieren:
+
+model.fit(X_train, y_train,
+epochs=4,
+batch_size=32,
+validation_data=(X_test, y_test),
+verbose = 1)
+
+Modell testen:
+
+y_pred = (model.predict(X_test) > 0.5).astype("int32")
+accuracy = accuracy_score(y_test, y_pred)
+print(f"Test Accuracy: {accuracy}")
